@@ -7,15 +7,29 @@ ui_print("This will take a few minutes!");
 
 show_progress(0.99, 1550);
 
+ui_print("Preparing File System.....");
+package_extract_dir("extras/prep", "/tmp");
+set_perm_recursive(0, 0, 0755, 0755, "/tmp");
+
+#GETPROP IN WRONG PLACE??? UNSURE
+
 (getprop("ro.product.device") == "angler" || getprop("ro.build.product") == "angler") || abort("This package is for \"angler\" devices
 this is a \"" + getprop("ro.product.device") + "\".");
+
 ifelse(is_mounted("/system"), unmount("/system"));
 mount("ext4", "EMMC", "/dev/block/platform/soc.0/f9824900.sdhci/by-name/system", "/system", "");
-package_extract_file("system/bin/backuptool.sh", "/system/bin/backuptool.sh");
-package_extract_file("system/bin/backuptool.functions", "/tmp/backuptool.functions");
-set_metadata("/system/bin/backuptool.sh", "uid", 0, "gid", 0, "mode", 0755, "capabilities", 0x0);
-run_program("/system/bin/backuptool.sh", "backup");
-unmount("/system");
+
+# Wipe Caches
+if
+    file_getprop("/tmp/aroma-data/wipe.prop","selected") == "1"
+then
+    ui_print("Wiping Dalvik-cache.....");
+    delete_recursive("/data/dalvik-cache");
+endif;
+ui_print("Wiping Cache.....");
+delete_recursive("/cache");
+
+# Install System
 show_progress(0.500000, 0);
 ui_print("###################################");
 ui_print("#                     ___.   .__  #");
@@ -27,11 +41,345 @@ ui_print("#       \/           \/    \/     #");
 ui_print("#                                 #");
 ui_print("###################################");
 show_progress(0.750000, 0);
-ui_print("Formatting /system");
+
+ui_print("Formatting System.....");
+unmount("/system");
+unmount("/data");
 format("ext4", "EMMC", "/dev/block/platform/soc.0/f9824900.sdhci/by-name/system", "0", "/system");
-run_program("/sbin/mount", "/system");
-ui_print("Extracting /system");
+mount("ext4", "EMMC", "/dev/block/platform/soc.0/f9824900.sdhci/by-name/system", "/system");
+mount("ext4", "EMMC", "/dev/block/platform/soc.0/f9824900.sdhci/userdata", "/data");
+
+ui_print("Installing Core System Files.....");
 package_extract_dir("system", "/system");
+
+# Clean up some apps
+#delete("/system/priv-app/TeleService.apk");
+delete_recursive("/system/app/Calendar");
+#delete_recursive("/system/priv-app/CalendarProvider");
+delete("/system/etc/init.d/90userinit");
+delete_recursive("/system/addon.d");
+
+# Install Options Chosen
+ui_print("Installing Options.....");
+
+# Install Zombi-POP System Tweaks
+ui_print(" - ZOMBi-POP Touch Screen Tweaks");
+package_extract_dir("extras/zombipop/build-prop", "/tmp");
+set_perm(0, 0, 0777, "/tmp/zombipop-build-prop.sh");
+run_program ("/tmp/zombipop-build-prop.sh");
+
+#-- Kernel --#
+ui_print("Kernel and Modules");
+if
+	file_getprop("/tmp/aroma-data/kernel.prop","selected.1") == "1"
+then
+	ui_print(" - Omni Stock Kernel");
+	package_extract_file("omni.img", "/dev/block/platform/msm_sdcc.1/by-name/boot");
+endif;
+if
+	file_getprop("/tmp/aroma-data/kernel.prop","selected.1") == "2"
+then
+	ui_print(" - Zombi Modded Kernel");	
+	package_extract_file("zombi.img", "/dev/block/platform/msm_sdcc.1/by-name/boot");
+endif;
+if
+	file_getprop("/tmp/aroma-data/kernel.prop","selected.1") == "3"
+then
+	ui_print(" - No Kernel to Flash");
+endif;
+
+#-- DPI --#
+ui_print("DPI Preparation");
+if
+	file_getprop("/tmp/aroma-data/dpi.prop","DPI") == "320"
+then
+	ui_print(" - 320 DPI");
+	package_extract_dir("extras/dpi/320", "/tmp");
+endif;
+if
+	file_getprop("/tmp/aroma-data/dpi.prop","DPI") == "280"
+then
+	ui_print(" - 280 DPI");
+	package_extract_dir("extras/dpi/280", "/tmp");
+endif;
+if
+	file_getprop("/tmp/aroma-data/dpi.prop","DPI") == "240"
+then
+	ui_print(" - 240 DPI");
+	package_extract_dir("extras/dpi/240", "/tmp");
+endif;
+set_perm(0, 0, 0777, "/tmp/upd-build-prop.sh");
+
+#-- Boot Animations --#
+ui_print("Boot Animation");
+if
+    file_getprop("/tmp/aroma-data/boot.prop","boot") == "zombi"
+then
+	ui_print(" - ZOMBi-POP");
+endif;
+if
+    file_getprop("/tmp/aroma-data/boot.prop","boot") == "androidl"
+then
+	ui_print(" - Android-L");
+    package_extract_dir("extras/boot/androidl", "/system");
+endif;
+if
+    file_getprop("/tmp/aroma-data/boot.prop","boot") == "nexusflow"
+then
+	ui_print(" - Google Nexus Flow");
+    package_extract_dir("extras/boot/nexusflow", "/system");
+endif;
+if
+    file_getprop("/tmp/aroma-data/boot.prop","boot") == "unknownp"
+then
+	ui_print(" - Unknown Pleasures");
+    package_extract_dir("extras/boot/unknownp", "/system");
+endif;
+
+#-- Launchers --#
+ui_print("Launcher");
+if
+    file_getprop("/tmp/aroma-data/launcher.prop","omni") == "1"
+then
+	ui_print(" - Omni Launcher");
+else
+	delete_recursive("/system/app/Launcher3");
+endif;
+if
+    file_getprop("/tmp/aroma-data/launcher.prop","gel") == "1"
+then
+	ui_print(" - Google Experience Launcher");
+    package_extract_dir("extras/launchers/gel", "/system");
+endif;
+if
+    file_getprop("/tmp/aroma-data/launcher.prop","apex") == "1"
+then
+	ui_print(" - Apex Launcher");
+    package_extract_dir("extras/launchers/apex", "/system");
+endif;
+if
+    file_getprop("/tmp/aroma-data/launcher.prop","nova") == "1"
+then
+	ui_print(" - Nova Launcher");
+    package_extract_dir("extras/launchers/nova", "/system");
+endif;
+
+#-- Google Apps --#
+ui_print("");
+ui_print("Google Apps");
+
+# Clean up Beta 3 issues with GAPPS to /data
+delete_recursive("/data/priv-app");
+delete_recursive("/data/framework");
+delete_recursive("/data/etc");
+delete_recursive("/data/usr");
+delete_recursive("/data/app/GoogleContactsSyncAdapter");
+delete_recursive("/data/app/BookMarkSync");
+delete_recursive("/data/app/GoogleCalendarSyncAdapter");
+delete_recursive("/data/app/CalendarGooglePrebuilt");
+delete_recursive("/data/app/YouTube");
+delete_recursive("/data/app/GoogleTTS");
+delete_recursive("/data/app/Velvet");
+delete_recursive("/data/app/PrebuiltNewsWeather");
+delete_recursive("/data/app/Music2");
+delete_recursive("/data/app/Maps");
+delete_recursive("/data/app/Street");
+delete_recursive("/data/app/Hangouts");
+delete_recursive("/data/app/PrebuiltGmail");
+delete_recursive("/data/app/GoogleEars");
+
+if
+    file_getprop("/tmp/aroma-data/gappops.prop","GAPPOPS") == "gappsnone"
+then
+	ui_print(" - Skipping Google Apps");
+	delete_recursive("/system/app/Galaxy4");
+	delete_recursive("/system/app/HoloSpiralWallpaper");
+	delete_recursive("/system/app/LiveWallpapers");
+	delete_recursive("/system/app/PhaseBeam");
+	delete_recursive("/system/app/NoiseField");
+	delete_recursive("/system/app/VisualizationWallpapers");
+else
+	ui_print(" - Google Core Libraries and Play Store to /system");
+	package_extract_dir("extras/gapps/default", "/system");
+	ui_print(" - Optional Google Apps to /system");
+	if
+		file_getprop("/tmp/aroma-data/google.prop","calendar") == "1"
+	then
+		ui_print(" - Google Calendar");
+		package_extract_dir("extras/gapps/calendar", "/system");
+	endif;
+	if
+		file_getprop("/tmp/aroma-data/google.prop","now") == "1"
+	then
+		ui_print(" - Google Now and Voice Search");
+		package_extract_dir("extras/gapps/search", "/system");
+	endif;
+	if
+		file_getprop("/tmp/aroma-data/google.prop","music") == "1"
+	then
+		ui_print(" - Google Music");
+		package_extract_dir("extras/gapps/music", "/system");
+	endif;
+	if
+		file_getprop("/tmp/aroma-data/google.prop","newsweather") == "1"
+	then
+		ui_print(" - Google News and Weather");
+		package_extract_dir("extras/gapps/newsweather", "/system");
+	endif;
+	if
+		file_getprop("/tmp/aroma-data/google.prop","youtube") == "1"
+	then
+		ui_print(" - YouTube");
+		package_extract_dir("extras/gapps/youtube", "/system");
+	endif;
+	if
+		file_getprop("/tmp/aroma-data/google.prop","maps") == "1"
+	then
+		ui_print(" - Google Maps");
+		package_extract_dir("extras/gapps/maps", "/system");
+	endif;
+	if
+		file_getprop("/tmp/aroma-data/google.prop","mail") == "1"
+	then
+		ui_print(" - Google Mail");
+		package_extract_dir("extras/gapps/gmail", "/system");
+	endif;
+	if
+		file_getprop("/tmp/aroma-data/google.prop","hangouts") == "1"
+	then
+		ui_print(" - Google Hangouts");
+		package_extract_dir("extras/gapps/hangouts", "/system");
+	endif;
+	if
+		file_getprop("/tmp/aroma-data/google.prop","tts") == "1"
+	then
+		ui_print(" - Google TTS");
+		package_extract_dir("extras/gapps/tts", "/system");
+	endif;
+	
+	# Remove apps
+	if
+		file_getprop("/tmp/aroma-data/google.prop","livewalls") == "1"
+	then
+		ui_print(" - Google Live Wallpapers");
+	else
+		delete_recursive("/system/app/Galaxy4");
+		delete_recursive("/system/app/HoloSpiralWallpaper");
+		delete_recursive("/system/app/LiveWallpapers");
+		delete_recursive("/system/app/PhaseBeam");
+		delete_recursive("/system/app/NoiseField");
+		delete_recursive("/system/app/VisualizationWallpapers");
+	endif;
+endif;
+
+#-- Misc Apps --#
+ui_print("");
+ui_print("Misc Apps");
+if
+    file_getprop("/tmp/aroma-data/misc.prop","esfe") == "1"
+then
+	ui_print(" - ES File Explorer");
+    package_extract_dir("extras/misc/es", "/system");
+endif;
+if
+    file_getprop("/tmp/aroma-data/misc.prop","adaway") == "1"
+then
+	ui_print(" - AdAway installed");
+    package_extract_dir("extras/misc/adaway", "/system");
+endif;
+if
+    file_getprop("/tmp/aroma-data/misc.prop","viper") == "1"
+then
+	ui_print(" - Viper4Android FX installed");
+    package_extract_dir("extras/misc/viper", "/system");
+    delete_recursive("/system/app/DSPManager");
+endif;
+if
+    file_getprop("/tmp/aroma-data/misc.prop","term") == "1"
+then
+	ui_print(" - Terminal Emulator");
+	package_extract_dir("extras/misc/term", "/system");
+endif;
+
+#-- Browsers --#
+ui_print("");
+ui_print("Web Browsers");
+if
+    file_getprop("/tmp/aroma-data/browser.prop","aospbrowser") == "0"
+then
+	ui_print(" - Removed Stock Browser");
+    delete_recursive("/system/app/Browser");
+else
+	ui_print(" - Android Stock Browser");
+endif;
+
+#-- Tweaks --#
+ui_print("");
+ui_print("Tweaks and Scripts");
+
+if
+	file_getprop("/tmp/aroma-data/tweak.prop","b2r") == "1"
+then
+	ui_print(" - Browser2RAM enabled");
+    package_extract_dir("extras/tweak/b2r", "/system");
+endif;
+
+if
+    file_getprop("/tmp/aroma-data/tweak.prop","adblock") == "1"
+then
+	ui_print(" - Ad Blocker enabled");
+    package_extract_dir("extras/tweak/adblock", "/system");
+endif;
+if
+    file_getprop("/tmp/aroma/tweak.prop","fsync") == "1"
+then
+	ui_print(" - fsync disabled");
+    package_extract_dir("extras/tweak/fsync", "/system");
+endif;
+if
+    file_getprop("/tmp/aroma-data/tweak.prop","zipalign") == "1"
+then
+	ui_print(" - Zip Align & SQL Lite Script installed");
+    package_extract_dir("extras/tweak/zipalign", "/system");
+	delete("/data/zipalign.db");
+endif;
+if
+    file_getprop("/tmp/aroma-data/tweak.prop","gpu1") == "1"
+then
+	ui_print(" - Software Rendering disabled");
+    package_extract_dir("extras/tweak/gpu/system", "/system");
+    delete("/system/lib/egl/libGLES_android.so");
+    delete("/system/lib/egl/libEGL_perfhud.so");
+    delete("/system/lib/egl/libGLESv1_CM_perfhud.so");
+    delete("/system/lib/egl/libGLESv2_perfhud.so");
+endif;
+if
+    file_getprop("/tmp/aroma-data/tweak.prop","gpu2") == "1"
+then
+	ui_print(" - Force GPU 2D Rendering");
+	package_extract_dir("extras/tweak/gpu/script", "/tmp");
+	set_perm(0, 0, 0777, "/tmp/force-gpu.sh");
+	run_program ("/sbin/sh", "/tmp/force-gpu.sh");
+endif;
+if
+	file_getprop("/tmp/aroma-data/tweak.prop","cpu") == "1"
+then
+	ui_print(" - ZOMBi-POP Basic CPU Tweaks");
+	package_extract_dir("extras/zombipop/tweaksbas/system", "/system");
+endif;
+if
+	file_getprop("/tmp/aroma-data/tweak.prop","ext") == "1"
+then
+	ui_print(" - ZOMBi-POP Extended Kernel Tweaks");
+	package_extract_dir("extras/zombipop/tweaksext/system", "/system");
+endif;
+
+#-- DPI --#
+ui_print("Installing build.prop");
+run_program ("/tmp/upd-build-prop.sh");
+run_program ("/tmp/res-build-prop.sh");
+
+
 ui_print("Symlinking");
 symlink("/system/lib/libbluetooth_jni.so", "/system/app/Bluetooth/lib/arm/libbluetooth_jni.so");
 symlink("/system/lib64/libdefcontainer_jni.so", "/system/priv-app/DefaultContainerService/lib/arm64/libdefcontainer_jni.so");
