@@ -169,24 +169,6 @@ ui_print("");
 ui_print("Google Apps");
 
 # Clean up Beta 3 issues with GAPPS to /data
-delete_recursive("/data/priv-app");
-delete_recursive("/data/framework");
-delete_recursive("/data/etc");
-delete_recursive("/data/usr");
-delete_recursive("/data/app/GoogleContactsSyncAdapter");
-delete_recursive("/data/app/BookMarkSync");
-delete_recursive("/data/app/GoogleCalendarSyncAdapter");
-delete_recursive("/data/app/CalendarGooglePrebuilt");
-delete_recursive("/data/app/YouTube");
-delete_recursive("/data/app/GoogleTTS");
-delete_recursive("/data/app/Velvet");
-delete_recursive("/data/app/PrebuiltNewsWeather");
-delete_recursive("/data/app/Music2");
-delete_recursive("/data/app/Maps");
-delete_recursive("/data/app/Street");
-delete_recursive("/data/app/Hangouts");
-delete_recursive("/data/app/PrebuiltGmail");
-delete_recursive("/data/app/GoogleEars");
 
 if
     file_getprop("/tmp/aroma-data/gappops.prop","GAPPOPS") == "gappsnone"
